@@ -179,6 +179,36 @@ func TestNextRunAtSelectedWeekdays(t *testing.T) {
 	}
 }
 
+// A Routine whose time falls in the hour a DST change skips keeps its local
+// clock on the days after the change.
+func TestNextRunAtKeepsTheLocalClockAfterADSTGap(t *testing.T) {
+	cases := []struct{ name, cadence, after, want string }{
+		{"daily", `{"kind":"daily","timezone":"America/New_York","hour":2,"minute":30}`, "2026-03-08T15:00:00Z", "2026-03-09T06:30:00Z"},
+		{"weekly", `{"kind":"weekly","timezone":"America/New_York","hour":2,"minute":30,"weekdays":["monday"]}`, "2026-03-08T15:00:00Z", "2026-03-09T06:30:00Z"},
+		{"daily east of UTC", `{"kind":"daily","timezone":"Europe/Berlin","hour":2,"minute":30}`, "2026-03-29T12:00:00Z", "2026-03-30T00:30:00Z"},
+		// America/Santiago skips 2026-09-06 00:00-01:00. time.Date puts that
+		// day's 00:30 at Saturday 23:30 -04 (03:30Z), so a Routine that fired
+		// then is advanced from 03:30Z.
+		{"daily after a midnight gap", `{"kind":"daily","timezone":"America/Santiago","hour":0,"minute":30}`, "2026-09-06T03:30:00Z", "2026-09-07T03:30:00Z"},
+		{"weekly after a midnight gap", `{"kind":"weekly","timezone":"America/Santiago","hour":0,"minute":30,"weekdays":["sunday"]}`, "2026-09-06T03:30:00Z", "2026-09-13T03:30:00Z"},
+		{"weekly on the day of a midnight gap", `{"kind":"weekly","timezone":"America/Santiago","hour":0,"minute":30,"weekdays":["monday"]}`, "2026-09-06T05:00:00Z", "2026-09-07T03:30:00Z"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var cadence Cadence
+			if err := json.Unmarshal([]byte(tc.cadence), &cadence); err != nil {
+				t.Fatal(err)
+			}
+			after, _ := time.Parse(time.RFC3339, tc.after)
+			want, _ := time.Parse(time.RFC3339, tc.want)
+			next, err := nextRunAt(cadence, after)
+			if err != nil || !next.Equal(want) {
+				t.Fatalf("next=%s want=%s err=%v", next, want, err)
+			}
+		})
+	}
+}
+
 func TestWeeklyRejectsInvalidSelections(t *testing.T) {
 	for _, fields := range []string{
 		`"weekdays":[]`, `"weekdays":["monday","monday"]`, `"weekdays":["funday"]`,
