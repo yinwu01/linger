@@ -8,6 +8,7 @@ import {
   downloadPercent,
   downloadStatusDetail,
   downloadStopped,
+  featuredInklingEntry,
   formatGigabytes,
   isModelOnComputer,
   loadCheck,
@@ -657,5 +658,192 @@ describe("downloadStopped", () => {
         }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("featured Inkling 2 Mini rules", () => {
+  it("matches case-insensitive and org-prefixed Inkling 2 Mini IDs via the shared helper", () => {
+    const view = labView({
+      models: [
+        modelView(
+          localModel({
+            fit: "gpu",
+            id: "gemma3-4b:Q4_K_M",
+            name: "Gemma 3 4B",
+          }),
+        ),
+        modelView(
+          localModel({
+            fit: "system",
+            id: "thinkingmachines/Inkling-2-Mini",
+            name: "Inkling 2 Mini",
+            pool: "system",
+          }),
+        ),
+      ],
+    });
+    const ordered = modelEntries(view);
+    expect(ordered.map((entry) => entry.model.id)).toEqual([
+      "thinkingmachines/Inkling-2-Mini",
+      "gemma3-4b:Q4_K_M",
+    ]);
+    expect(featuredInklingEntry(ordered)?.model.id).toBe(
+      "thinkingmachines/Inkling-2-Mini",
+    );
+  });
+
+  it("orders featured models after recommended within each status and before fit order", () => {
+    const view = labView({
+      models: [
+        modelView(
+          localModel({
+            fit: "gpu",
+            id: "gemma3-4b:Q4_K_M",
+            name: "Gemma 3 4B",
+          }),
+        ),
+        modelView(
+          localModel({
+            fit: "system",
+            id: "inkling-2-mini:UD-Q4_K_M",
+            name: "Inkling 2 Mini",
+            pool: "system",
+          }),
+        ),
+        modelView(
+          localModel({
+            fit: "gpu",
+            id: "gpt-oss-20b:Q4_K_M",
+            name: "GPT-OSS 20B",
+            recommended: true,
+          }),
+        ),
+        // Display name alone never promotes a non-matching ID.
+        modelView(
+          localModel({
+            fit: "system",
+            id: "custom-model:Q4_K_M",
+            name: "Inkling 2 Mini Clone",
+            pool: "system",
+          }),
+        ),
+        modelView(
+          localModel({
+            id: "qwen3-coder-30b:Q4_K_M",
+            name: "Qwen3 Coder 30B",
+            state: "loaded",
+          }),
+        ),
+      ],
+    });
+    expect(modelEntries(view).map((entry) => entry.model.id)).toEqual([
+      "qwen3-coder-30b:Q4_K_M",
+      "gpt-oss-20b:Q4_K_M",
+      "inkling-2-mini:UD-Q4_K_M",
+      "gemma3-4b:Q4_K_M",
+      "custom-model:Q4_K_M",
+    ]);
+
+    // When nothing else is recommended, featured rises to the top of available.
+    const noRecommended = labView({
+      models: [
+        modelView(localModel({ id: "gemma3-4b:Q4_K_M", name: "Gemma 3 4B" })),
+        modelView(
+          localModel({
+            id: "inkling-2-mini:UD-Q4_K_M",
+            name: "Inkling 2 Mini",
+          }),
+        ),
+      ],
+    });
+    expect(modelEntries(noRecommended).map((entry) => entry.model.id)).toEqual([
+      "inkling-2-mini:UD-Q4_K_M",
+      "gemma3-4b:Q4_K_M",
+    ]);
+  });
+
+  it("selects the best Inkling 2 Mini entry, preferring UD-Q4_K_M when variants tie", () => {
+    expect(featuredInklingEntry(modelEntries(labView()))).toBeUndefined();
+
+    const multiAvailable = labView({
+      models: [
+        modelView(
+          localModel({
+            id: "inkling-2-mini-iq3xxs:UD-IQ3_XXS",
+            name: "Inkling 2 Mini (IQ3_XXS)",
+            quant: "UD-IQ3_XXS",
+          }),
+        ),
+        modelView(
+          localModel({
+            id: "inkling-2-mini:UD-Q4_K_M",
+            name: "Inkling 2 Mini",
+            quant: "UD-Q4_K_M",
+          }),
+        ),
+      ],
+    });
+    expect(featuredInklingEntry(modelEntries(multiAvailable))?.model.id).toBe(
+      "inkling-2-mini:UD-Q4_K_M",
+    );
+
+    // On a 16 GB host where Q4 is unavailable, sibling IQ3_XXS wins.
+    const q4Unavailable = labView({
+      models: [
+        modelView(
+          localModel({
+            availability: {
+              downloadable: false,
+              reason: {
+                code: "MEMORY_INSUFFICIENT",
+                have_bytes: gb(16),
+                need_bytes: gb(19.2),
+              },
+            },
+            fit: "none",
+            id: "inkling-2-mini:UD-Q4_K_M",
+            name: "Inkling 2 Mini",
+            pool: undefined,
+            quant: "UD-Q4_K_M",
+          }),
+        ),
+        modelView(
+          localModel({
+            fit: "gpu",
+            id: "inkling-2-mini-iq3xxs:UD-IQ3_XXS",
+            memory_bytes: gb(13.5),
+            name: "Inkling 2 Mini (IQ3_XXS)",
+            quant: "UD-IQ3_XXS",
+          }),
+        ),
+      ],
+    });
+    expect(featuredInklingEntry(modelEntries(q4Unavailable))?.model.id).toBe(
+      "inkling-2-mini-iq3xxs:UD-IQ3_XXS",
+    );
+
+    // A loaded variant beats an available UD-Q4_K_M.
+    const iq3Loaded = labView({
+      models: [
+        modelView(
+          localModel({
+            id: "inkling-2-mini:UD-Q4_K_M",
+            name: "Inkling 2 Mini",
+            quant: "UD-Q4_K_M",
+          }),
+        ),
+        modelView(
+          localModel({
+            id: "inkling-2-mini:UD-IQ3_S",
+            name: "Inkling 2 Mini (IQ3)",
+            quant: "UD-IQ3_S",
+            state: "loaded",
+          }),
+        ),
+      ],
+    });
+    expect(featuredInklingEntry(modelEntries(iq3Loaded))?.model.id).toBe(
+      "inkling-2-mini:UD-IQ3_S",
+    );
   });
 });

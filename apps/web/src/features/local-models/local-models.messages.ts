@@ -91,6 +91,16 @@ export const localModelsMessages = defineMessages("localModels", {
   endingUnload: "Unloading",
   endingDiscard: "Discarding",
   openChat: "Open chat",
+  featured: "Featured",
+  featuredNew: "New",
+  featuredSpotlightRegion: "Featured model: Inkling 2 Mini",
+  featuredByThinkingMachines: "Featured · Thinking Machines",
+  featuredInklingSummary:
+    "26.4B looped MoE (3.4B active) built for local agentic coding and vision — Apache 2.0.",
+  featuredReadAnnouncement: "Read announcement",
+  featuredHuggingFace: "Hugging Face",
+  featuredNotInCatalog:
+    "Not in this computer's local model catalog yet. Update Linger's local models runtime if you're on an older version.",
   recommended: "Recommended",
   runsSlower: "runs slower",
   noRoomYet: "no room to load yet",

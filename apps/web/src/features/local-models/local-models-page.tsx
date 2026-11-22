@@ -43,6 +43,7 @@ import {
   isAgentUsingModel,
   usedByAgentNames,
 } from "./local-model-agents";
+import { FeaturedModelSpotlight } from "./featured-model-spotlight";
 import { AdvancedDialog } from "./local-model-details";
 import { ModelRow } from "./local-model-row";
 import {
@@ -70,6 +71,7 @@ import {
 } from "./local-models-queries";
 import {
   downloadStopped,
+  featuredInklingEntry,
   formatGigabytes,
   joinList,
   loadCheck,
@@ -735,6 +737,17 @@ function Library({
     () => (view.available ? modelEntries(view) : []),
     [view],
   );
+  const spotlightEntry = useMemo(
+    () => featuredInklingEntry(entries),
+    [entries],
+  );
+  const listEntries = useMemo(
+    () =>
+      spotlightEntry
+        ? entries.filter((entry) => entry.model.id !== spotlightEntry.model.id)
+        : entries,
+    [entries, spotlightEntry],
+  );
   const find = (modelId: string) =>
     entries.find((entry) => entry.model.id === modelId);
   const mutationKey = localModelActionMutationKey(tenantId, computerId);
@@ -1069,6 +1082,55 @@ function Library({
     }
   }
 
+  const canUseModelForAgents = (entry: ModelEntry) =>
+    !offline &&
+    !readOnly &&
+    status?.mode === "local" &&
+    entry.status === "loaded" &&
+    entry.model.pi_model !== status.runtime_model &&
+    entry.model.id !== status.runtime_model;
+
+  const renderModelRow = (entry: ModelEntry, inSpotlight = false) => {
+    const modelId = entry.model.id;
+    const canUseForAgents = canUseModelForAgents(entry);
+    return (
+      <ModelRow
+        anotherMeChatHref={anotherMeChatHref}
+        assignableAgents={assignableAgents}
+        assigningAgentId={assigningAgentId}
+        computer={computer}
+        disabled={offline || readOnly || switching || busy(modelId)}
+        entry={entry}
+        expanded={expandedId === modelId}
+        inSpotlight={inSpotlight}
+        key={modelId}
+        onAssignAgent={
+          entry.model.pi_model && canSwitchAgents
+            ? (agent) =>
+                assignMutation.mutate({
+                  agent,
+                  piModel: entry.model.pi_model!,
+                })
+            : undefined
+        }
+        onCancel={() => act({ action: "cancel", modelId })}
+        onDownload={() => act({ action: "download", modelId })}
+        onLoad={() => load(entry)}
+        onRemove={() => setDialog({ kind: "remove", modelId })}
+        onToggle={() =>
+          setExpandedId((current) => (current === modelId ? null : modelId))
+        }
+        onUnload={() => unload(entry)}
+        onUseForAgents={
+          canUseForAgents ? () => onUseForAgents(modelId) : undefined
+        }
+        requested={requests.get(modelId)}
+        switchingForAgents={switchingModelId === modelId}
+        view={view}
+      />
+    );
+  };
+
   return (
     <>
       {offline ? (
@@ -1160,60 +1222,20 @@ function Library({
             </aside>
           ) : null}
           {entries.length === 0 ? (
-            <EmptyState title={t(m.noModelsTitle)}>
-              {t(m.noModelsBody, { name })}
-            </EmptyState>
+            <>
+              <div className="mt-6">
+                <FeaturedModelSpotlight />
+              </div>
+              <EmptyState title={t(m.noModelsTitle)}>
+                {t(m.noModelsBody, { name })}
+              </EmptyState>
+            </>
           ) : (
             <section aria-label={t(m.title)} className="mt-6 grid gap-2">
-              {entries.map((entry) => {
-                const modelId = entry.model.id;
-                const canUseForAgents =
-                  !offline &&
-                  !readOnly &&
-                  status?.mode === "local" &&
-                  entry.status === "loaded" &&
-                  entry.model.pi_model !== status.runtime_model &&
-                  entry.model.id !== status.runtime_model;
-                return (
-                  <ModelRow
-                    anotherMeChatHref={anotherMeChatHref}
-                    assignableAgents={assignableAgents}
-                    assigningAgentId={assigningAgentId}
-                    computer={computer}
-                    disabled={offline || readOnly || switching || busy(modelId)}
-                    entry={entry}
-                    expanded={expandedId === modelId}
-                    key={modelId}
-                    onAssignAgent={
-                      entry.model.pi_model && canSwitchAgents
-                        ? (agent) =>
-                            assignMutation.mutate({
-                              agent,
-                              piModel: entry.model.pi_model!,
-                            })
-                        : undefined
-                    }
-                    onCancel={() => act({ action: "cancel", modelId })}
-                    onDownload={() => act({ action: "download", modelId })}
-                    onLoad={() => load(entry)}
-                    onRemove={() => setDialog({ kind: "remove", modelId })}
-                    onToggle={() =>
-                      setExpandedId((current) =>
-                        current === modelId ? null : modelId,
-                      )
-                    }
-                    onUnload={() => unload(entry)}
-                    onUseForAgents={
-                      canUseForAgents
-                        ? () => onUseForAgents(modelId)
-                        : undefined
-                    }
-                    requested={requests.get(modelId)}
-                    switchingForAgents={switchingModelId === modelId}
-                    view={view}
-                  />
-                );
-              })}
+              <FeaturedModelSpotlight>
+                {spotlightEntry ? renderModelRow(spotlightEntry, true) : null}
+              </FeaturedModelSpotlight>
+              {listEntries.map((entry) => renderModelRow(entry))}
             </section>
           )}
         </>

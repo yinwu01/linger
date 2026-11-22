@@ -1,3 +1,5 @@
+import { isInkling2MiniModelId } from "@linger/service-kit/featured-models";
+
 import type { Translate } from "@/i18n/language";
 import { formatBytes } from "@/lib/format-bytes";
 
@@ -79,7 +81,39 @@ const fitOrder: Record<LocalModel["fit"], number> = {
   unified: 0,
 };
 
-/** The library as one list: by status, then the recommended model, then by fit. */
+const PREFERRED_INKLING_ID = "inkling-2-mini:ud-q4_k_m";
+const PREFERRED_INKLING_QUANT = "UD-Q4_K_M";
+
+function isPreferredInklingVariant(model: LocalModel): boolean {
+  return (
+    model.id.toLowerCase() === PREFERRED_INKLING_ID ||
+    model.quant === PREFERRED_INKLING_QUANT
+  );
+}
+
+/**
+ * Picks the best Inkling 2 Mini entry from a Computer's library for the
+ * featured spotlight: highest status first, then better hardware fit, then
+ * Computer recommendation, preferring UD-Q4_K_M when variants tie.
+ */
+export function featuredInklingEntry(
+  entries: readonly ModelEntry[],
+): ModelEntry | undefined {
+  const matching = entries.filter((entry) =>
+    isInkling2MiniModelId(entry.model.id),
+  );
+  if (matching.length <= 1) return matching[0];
+  return [...matching].sort(
+    (a, b) =>
+      modelStatuses.indexOf(a.status) - modelStatuses.indexOf(b.status) ||
+      fitOrder[a.model.fit] - fitOrder[b.model.fit] ||
+      Number(b.model.recommended) - Number(a.model.recommended) ||
+      Number(isPreferredInklingVariant(b.model)) -
+        Number(isPreferredInklingVariant(a.model)),
+  )[0];
+}
+
+/** The library as one list: by status, then recommended, then featured, then by fit. */
 export function modelEntries(view: LocalModelsView): ModelEntry[] {
   return view.models
     .map((item) => ({ ...item, status: modelStatus(item.model) }))
@@ -87,6 +121,8 @@ export function modelEntries(view: LocalModelsView): ModelEntry[] {
       (a, b) =>
         modelStatuses.indexOf(a.status) - modelStatuses.indexOf(b.status) ||
         Number(b.model.recommended) - Number(a.model.recommended) ||
+        Number(isInkling2MiniModelId(b.model.id)) -
+          Number(isInkling2MiniModelId(a.model.id)) ||
         fitOrder[a.model.fit] - fitOrder[b.model.fit],
     );
 }

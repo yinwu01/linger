@@ -48,7 +48,12 @@ build:assets` to check the initial JS budget.
   memory or unified memory is constrained), shows an explicit `Memory guidance`
   banner and `Recheck memory` button (`POST .../local-models`), lets owners
   pick among installed local models in `SwitchToLocalNotice` or click
-  `Use for Agents` on a loaded row, renders tinted family icon tiles, Agent
+  `Use for Agents` on a loaded row, highlights Thinking Machines' Inkling 2
+  Mini in a featured spotlight frame (`featured-model-spotlight.tsx`) wrapping
+  the matching `ModelRow` so status and actions stay in one place (matched via
+  `@linger/service-kit/featured-models`, degrading to a partner highlight with
+  external links when absent from the catalog),
+  renders tinted family icon tiles, Agent
   usage counts, structured capability/parameter badges (never matched against
   `name` or `description`), state-distinct cards (`loaded`, `recommended`,
   `failed` with short failure reasons and direct `Remove` for damaged/missing
