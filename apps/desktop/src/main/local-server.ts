@@ -58,6 +58,7 @@ import {
   TEAMHUB_BINARY_DIRECTORY,
 } from "@linger/local-installation/teamhub-binaries";
 import { redact } from "@linger/local-installation/redaction";
+import { isInkling2MiniModelId } from "@linger/service-kit/featured-models";
 import {
   windowsPrivateRefusal,
   type WindowsPrivateRefusal,
@@ -1058,6 +1059,9 @@ export class LocalServerModule implements Module {
               downloadBytes: bytes(estimate?.downloadBytes),
               diskBytes: bytes(estimate?.diskBytes),
               memoryBytes: bytes(estimate?.memoryBytes),
+              ...(isInkling2MiniModelId(name)
+                ? { featuredInkling: true as const }
+                : {}),
             },
           }
         : {}),

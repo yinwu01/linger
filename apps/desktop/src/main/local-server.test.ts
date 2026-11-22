@@ -128,8 +128,14 @@ if (args.includes("--inspect")) {
   fs.writeFileSync(path.join(home, "runtime", "inspect-args.json"), JSON.stringify(args));
   const hardware = { totalMemoryBytes: 64 * 1024 ** 3, diskFreeBytes: 200 * 1024 ** 3, gpus: [{ name: "RTX 4090" }] };
   const eligible = !fs.existsSync(path.join(target, "small-computer"));
+  const modelFile = path.join(target, "inspect-model");
+  const modelName = fs.existsSync(path.join(target, "unnamed-model"))
+    ? ""
+    : fs.existsSync(modelFile)
+      ? fs.readFileSync(modelFile, "utf8").trim()
+      : "qwen3-8b";
   const estimate = eligible
-    ? { model: fs.existsSync(path.join(target, "unnamed-model")) ? "" : "qwen3-8b", downloadBytes: 6 * 1024 ** 3, diskBytes: 8 * 1024 ** 3, memoryBytes: 12 * 1024 ** 3 }
+    ? { model: modelName, downloadBytes: 6 * 1024 ** 3, diskBytes: 8 * 1024 ** 3, memoryBytes: 12 * 1024 ** 3 }
     : { model: "", downloadBytes: null, diskBytes: null, memoryBytes: null };
   if (fs.existsSync(path.join(home, "tool-download"))) {
     // The first check downloads the localmodels tool, counted before the report.
@@ -1818,6 +1824,28 @@ describe("LocalServerModule", () => {
       }),
     );
     info.mockRestore();
+  });
+
+  it("marks checked Inkling 2 Mini models with featuredInkling using the shared matcher", async () => {
+    const f = fixture({ checkout: "/src" }, {}, (home) => {
+      mkdirSync(home, { recursive: true });
+      writeFileSync(
+        path.join(home, "inspect-model"),
+        "thinkingmachines/Inkling-2-Mini",
+      );
+    });
+    await f.host.start();
+    f.module.inspect();
+    await waitForInstaller(() =>
+      expect(f.module.status().localModels).toMatchObject({
+        state: "checked",
+        eligible: true,
+        model: {
+          name: "thinkingmachines/Inkling-2-Mini",
+          featuredInkling: true,
+        },
+      }),
+    );
   });
 
   it("forwards validated CUDA driver versions without leaking tool prose", async () => {
